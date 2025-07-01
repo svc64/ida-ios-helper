@@ -113,7 +113,7 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
         flags = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_FLAGS)
         if flags & KALLOC_FLAG_DATA_ONLY:
             data_size = memory.dword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIZE)
-            create_data_type(class_name, data_size)
+            create_data_type(class_name, data_size, classes_handled)
         else:
             signature_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIGNATURE)
             signature = memory.str_from_ea(signature_ea)
@@ -123,7 +123,10 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
 
             try_enrich_type(class_name, signature, classes_handled)
 
-def create_data_type(name: str, size: int):
+def create_data_type(name: str, size: int, classes_handled: set[str]):
+    if name in classes_handled:
+        return
+    classes_handled.add(name)
     """Create a new data type with the given name and size"""
     tif.create_from_c_decl(f"struct {name} {{ char data[{size}]; }};")
 
