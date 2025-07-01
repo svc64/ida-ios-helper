@@ -52,7 +52,7 @@ struct kalloc_type_view {
 KALLOC_TYPE_VIEW_OFFSET_NAME = 16  # void *zv_zone + void *zv_stats
 KALLOC_TYPE_VIEW_OFFSET_SIGNATURE = 32  # zone_view
 KALLOC_TYPE_VIEW_OFFSET_FLAGS = 40  # zone_view + const char *kt_signature
-KALLOC_TYPE_VIEW_OFFSET_SIZE = 48  # zone_view + kalloc_type_flags_t kt_flags
+KALLOC_TYPE_VIEW_OFFSET_SIZE = 44  # zone_view + kalloc_type_flags_t kt_flags
 
 VOID_PTR_TYPE: tinfo_t = tif.from_c_type("void*")  # type: ignore   # noqa: PGH003
 
@@ -111,7 +111,7 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
             continue
         
         flags = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_FLAGS)
-        if flags & KALLOC_FLAG_DATA_ONLY:
+        if flags & KALLOC_FLAG_DATA_ONLY or flags & KALLOC_FLAG_VM:
             data_size = memory.dword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIZE)
             create_data_type(class_name, data_size, classes_handled)
         else:
