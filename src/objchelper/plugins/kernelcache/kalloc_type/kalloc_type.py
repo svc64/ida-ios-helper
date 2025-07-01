@@ -4,6 +4,19 @@ from ida_typeinf import tinfo_t
 
 from objchelper.idahelper import memory, segments, tif
 
+KALLOC_FLAG_DEFAULT        = 0x0001
+KALLOC_FLAG_PRIV_ACCT      = 0x0002
+KALLOC_FLAG_SHARED_ACCT    = 0x0004
+KALLOC_FLAG_DATA_ONLY      = 0x0008
+KALLOC_FLAG_VM             = 0x0010
+KALLOC_FLAG_CHANGED        = 0x0020
+KALLOC_FLAG_CHANGED2       = 0x0040
+KALLOC_FLAG_PTR_ARRAY      = 0x0080
+KALLOC_FLAG_NOSHARED       = 0x2000
+KALLOC_FLAG_SLID           = 0x4000
+KALLOC_FLAG_PROCESSED      = 0x8000
+KALLOC_FLAG_HASH           = 0xffff0000
+
 KALLOC_TYPE_DEFINITIONS = """
 struct zone_view {
     void*          zv_zone;
@@ -38,6 +51,8 @@ struct kalloc_type_view {
 """
 KALLOC_TYPE_VIEW_OFFSET_NAME = 16  # void *zv_zone + void *zv_stats
 KALLOC_TYPE_VIEW_OFFSET_SIGNATURE = 32  # zone_view
+KALLOC_TYPE_VIEW_OFFSET_FLAGS = 40  # zone_view + const char *kt_signature
+KALLOC_TYPE_VIEW_OFFSET_SIZE = 48  # zone_view + kalloc_type_flags_t kt_flags
 
 VOID_PTR_TYPE: tinfo_t = tif.from_c_type("void*")  # type: ignore   # noqa: PGH003
 
@@ -94,15 +109,23 @@ def set_kalloc_type_for_segment(segment: segments.Segment, kalloc_type_view_tif:
         if not memory.set_name(kty_ea, new_name, retry=True, retry_count=50):
             print(f"[Error] failed to rename kalloc_type_view on {kty_ea:X} to {new_name!r}")
             continue
+        
+        flags = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_FLAGS)
+        if flags & KALLOC_FLAG_DATA_ONLY:
+            data_size = memory.dword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIZE)
+            create_data_type(class_name, data_size)
+        else:
+            signature_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIGNATURE)
+            signature = memory.str_from_ea(signature_ea)
+            if signature is None:
+                print(f"[Error] failed to read signature for {new_name} on {kty_ea:X}")
+                continue
 
-        signature_ea = memory.qword_from_ea(kty_ea + KALLOC_TYPE_VIEW_OFFSET_SIGNATURE)
-        signature = memory.str_from_ea(signature_ea)
-        if signature is None:
-            print(f"[Error] failed to read signature for {new_name} on {kty_ea:X}")
-            continue
+            try_enrich_type(class_name, signature, classes_handled)
 
-        try_enrich_type(class_name, signature, classes_handled)
-
+def create_data_type(name: str, size: int):
+    """Create a new data type with the given name and size"""
+    tif.create_from_c_decl(f"struct {name} {{ char data[{size}]; }};")
 
 def try_enrich_type(class_name: str, signature: str, classes_handled: set[str]):
     # Don't try to enrich the same type multiple times

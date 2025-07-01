@@ -24,6 +24,9 @@ def qword_from_ea(ea: int) -> int:
     """Given EA return the 8 byte value stored at that location"""
     return ida_bytes.get_qword(ea)
 
+def dword_from_ea(ea: int) -> int:
+    """Given EA return the 4 byte value stored at that location"""
+    return ida_bytes.get_dword(ea)
 
 def ea_from_name(name: str) -> int | None:
     """Given a name return the EA of the symbol"""
